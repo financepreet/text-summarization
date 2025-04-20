@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>News Summarizer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="nav-buttons">
+        <a href="{{ url_for('home') }}">Home</a>
+        <a href="{{ url_for('summarize') }}">Summarize</a>
+        <a href="{{ url_for('history') }}">History</a>
+        <a href="{{ url_for('feedback') }}">Feedback</a>
+        <a href="{{ url_for('logout') }}">Logout</a>
+    </div>
+    <div class="content">
+        <h1 class="title">NewsNutshell - Logged in as {{ user_type|capitalize }} ({{ email }})</h1>
+        {% if page == 'home' %}
+            <h2>Latest CNN News</h2>
+            {% if articles %}
+                {% for article in articles[:5] %}
+                    <div class="news-card">
+                        <img src="{{ article.urlToImage or 'https://via.placeholder.com/600' }}" alt="News Image">
+                        <h3>{{ article.title[:80] }}...</h3>
+                        <p>{{ article.description[:150] or 'N/A' }}...</p>
+                        <a href="{{ article.url }}" target="_blank">Read Full Article</a>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="error">Failed to load news. Check API key or connection.</p>
+            {% endif %}
+        {% elif page == 'summarize' %}
+            <h2>Summarize Your Text</h2>
+            <form method="post">
+                <div class="form-group">
+                    <label for="text">Text to Summarize:</label>
+                    <textarea name="text" id="text" placeholder="Insert text here" rows="10" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="summ_type">Summarization Type:</label>
+                    <select name="summ_type" id="summ_type">
+                        <option value="abstractive" selected>Abstractive</option>
+                        <option value="extractive">Extractive</option>
+                    </select>
+                    <span class="info-icon" id="info-icon">?</span>
+                </div>
+                <div class="form-group">
+                    <label for="num_keywords">Number of Keywords (1-5):</label>
+                    <input type="number" name="num_keywords" id="num_keywords" min="1" max="5" value="3" required>
+                </div>
+                <div class="form-group">
+                    <label for="format_choice">Format:</label>
+                    <select name="format_choice" id="format_choice">
+                        <option value="paragraph" selected>Paragraph</option>
+                        <option value="bullet">Bullet Points</option>
+                    </select>
+                </div>
+                <div class="form-group" id="extractive-options" style="display: none;">
+                    <label for="num_sentences">Number of Sentences (1-10):</label>
+                    <input type="number" name="num_sentences" id="num_sentences" min="1" max="10" value="3" required>
+                </div>
+                <button type="submit">Generate Summary</button>
+            </form>
+            <!-- Popup Boxes for Information -->
+            <div id="info-popup" class="info-popup">
+                <div class="info-content">
+                    <span id="close-popup" onclick="hidePopup()">×</span>
+                    <h3 id="popup-title"></h3>
+                    <p id="popup-text"></p>
+                </div>
+            </div>
+            <script>
+                function toggleExtractiveOptions() {
+                    const summType = document.getElementById('summ_type').value;
+                    const extractiveOptions = document.getElementById('extractive-options');
+                    extractiveOptions.style.display = summType === 'extractive' ? 'block' : 'none';
+                    updateInfoIcon(summType);
+                }
+
+                function updateInfoIcon(type) {
+                    const infoIcon = document.getElementById('info-icon');
+                    infoIcon.setAttribute('data-type', type);
+                    console.log('Updated info icon for:', type); // Debug
+                }
+
+                function showPopup(type) {
+                    console.log('Showing popup for:', type); // Debug
+                    const popup = document.getElementById('info-popup');
+                    const title = document.getElementById('popup-title');
+                    const text = document.getElementById('popup-text');
+                    if (type === 'abstractive') {
+                        title.textContent = 'Abstractive Summarization';
+                        text.textContent = 'Abstractive summarization involves generating a concise summary by rephrasing and synthesizing the original text using natural language generation. It creates new sentences that capture the main ideas, often using advanced models like BART to understand and rewrite content.';
+                    } else if (type === 'extractive') {
+                        title.textContent = 'Extractive Summarization';
+                        text.textContent = 'Extractive summarization selects and combines key sentences or phrases directly from the original text based on their importance (e.g., using TF-IDF or similarity scores). It preserves the original wording and is useful for maintaining accuracy.';
+                    }
+                    popup.style.display = 'block';
+                }
+
+                function hidePopup() {
+                    const popup = document.getElementById('info-popup');
+                    popup.style.display = 'none';
+                }
+
+                document.addEventListener('DOMContentLoaded', () => {
+                    const summTypeSelect = document.getElementById('summ_type');
+                    summTypeSelect.addEventListener('change', toggleExtractiveOptions);
+                    toggleExtractiveOptions(); // Initial call to set visibility
+
+                    const infoIcon = document.getElementById('info-icon');
+                    infoIcon.addEventListener('click', () => {
+                        const type = infoIcon.getAttribute('data-type');
+                        if (type) showPopup(type);
+                    });
+
+                    // Close popup when clicking outside
+                    document.addEventListener('click', (event) => {
+                        const popup = document.getElementById('info-popup');
+                        if (!popup.contains(event.target) && event.target.tagName !== 'SPAN') {
+                            hidePopup();
+                        }
+                    });
+                });
+            </script>
+            {% if summary %}
+                <div class="summary-output">
+                    <h3>Summary:</h3>
+                    <pre class="summary-text">{{ summary }}</pre>
+                    <h3>Keywords:</h3>
+                    <p class="summary-text">{{ keywords|join(', ') }}</p>
+                    {% if cosine_similarity is defined %}
+                        <h3>Cosine Similarity:</h3>
+                        <p class="summary-text">{{ '%.4f'|format(cosine_similarity) }}</p>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% elif page == 'history' %}
+            <h2>Your Summarization History</h2>
+            {% if user_type == 'admin' %}
+                <p>All Users' History</p>
+            {% else %}
+                <p>History for {{ email }}</p>
+            {% endif %}
+            {% if history %}
+                {% for entry in history|reverse %}
+                    <div class="history-entry">
+                        <p><strong>{{ entry.type|capitalize }} - {{ entry.timestamp }}</strong> (User: {{ entry.user_email }})</p>
+                        <p>Input: {{ entry.input }}...</p>
+                        <p>Summary: {{ entry.summary }}</p>
+                        <p>Keywords: {{ entry.keywords|join(', ') }}</p>
+                        {% if 'cosine_similarity' in entry %}
+                            <p>Cosine Similarity: {{ '%.4f'|format(entry.cosine_similarity) }}</p>
+                        {% endif %}
+                        <hr>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>No history yet. Summarize some text to see it here!</p>
+            {% endif %}
+        {% elif page == 'feedback' %}
+            <h2>We’d Love Your Feedback!</h2>
+            {% if message %}
+                <p class="success">{{ message }}</p>
+            {% endif %}
+            <form method="post">
+                <textarea name="feedback" placeholder="Enter your feedback" rows="5"></textarea>
+                <button type="submit">Submit Feedback</button>
+            </form>
+            <h3>Your Feedback History</h3>
+            {% if user_type == 'admin' %}
+                <p>All Users' Feedback</p>
+            {% else %}
+                <p>Feedback from {{ email }}</p>
+            {% endif %}
+            {% if feedback_entries %}
+                {% for entry in feedback_entries|reverse %}
+                    <div class="history-entry">
+                        <p><strong>{{ entry.timestamp }}</strong> (User: {{ entry.user_email }})</p>
+                        <p>{{ entry.feedback }}</p>
+                        <hr>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>No feedback submitted yet.</p>
+            {% endif %}
+        {% endif %}
+        {% if user_type == 'admin' %}
+            <div class="admin-panel">
+                <h3>Admin Panel</h3>
+                {% if users %}
+                    <h4>Registered Users</h4>
+                    <ul>
+                        {% for email, info in users.items() %}
+                            <li>{{ email }} - Type: {{ info.type|capitalize }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>No users registered yet.</p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+    <div class="cookie-banner">
+        Cookies: We use cookies to ensure that we give you the best experience on our website. If you continue to use this site we will assume that you are happy with it.
+        <button onclick="this.parentElement.style.display='none'">OK</button>
+    </div>
+</body>
+</html>

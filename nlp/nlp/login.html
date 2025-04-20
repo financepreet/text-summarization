@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login - News Summarizer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .auth-container {
+            max-width: 400px; /* Narrower container for better alignment */
+            margin: 0 auto;
+            padding: 20px;
+            text-align: left;
+        }
+        .radio-group {
+            margin-bottom: 15px;
+        }
+        .radio-group label {
+            display: block;
+            margin: 5px 0;
+        }
+        .passkey-field {
+            display: none; /* Hidden by default */
+            margin-top: 10px;
+        }
+        .passkey-field.active {
+            display: block;
+        }
+    </style>
+    <script>
+        function togglePasskey() {
+            const adminRadio = document.querySelector('input[value="admin"]');
+            const passkeyField = document.querySelector('.passkey-field');
+            passkeyField.classList.toggle('active', adminRadio.checked);
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            const radios = document.querySelectorAll('input[name="login_type"]');
+            radios.forEach(radio => radio.addEventListener('change', togglePasskey));
+            togglePasskey(); // Initial call to set visibility
+        });
+    </script>
+</head>
+<body>
+    <div class="auth-container">
+        <h1 class="title">NewsNutshell</h1>
+        <h2>Login</h2>
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
+        {% if message %}
+            <p class="success">{{ message }}</p>
+        {% endif %}
+        <form method="post" action="{{ url_for('login') }}">
+            <div class="radio-group">
+                <label><input type="radio" name="login_type" value="user" checked onchange="togglePasskey()"> General User</label>
+                <label><input type="radio" name="login_type" value="admin" onchange="togglePasskey()"> Admin</label>
+            </div>
+            <input type="text" name="email" placeholder="Email" required>
+            <input type="password" name="password" placeholder="Password" required>
+            <div class="passkey-field">
+                <input type="password" name="passkey" placeholder="Admin Passkey">
+            </div>
+            <button type="submit">Login</button>
+        </form>
+        <p>Don't have an account? <a href="{{ url_for('register') }}">Register</a></p>
+    </div>
+    <div class="cookie-banner">
+        Cookies: We use cookies to ensure that we give you the best experience on our website. If you continue to use this site we will assume that you are happy with it.
+        <button onclick="this.parentElement.style.display='none'">OK</button>
+    </div>
+</body>
+</html>
